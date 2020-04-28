@@ -1,5 +1,15 @@
 package tech.picnic.assignment.impl;
 
+import org.json.JSONException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.skyscreamer.jsonassert.JSONCompareMode;
+import tech.picnic.assignment.api.EventProcessorFactory;
+import tech.picnic.assignment.api.StreamProcessor;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,17 +19,6 @@ import java.util.Iterator;
 import java.util.Scanner;
 import java.util.ServiceLoader;
 import java.util.stream.Stream;
-
-import org.json.JSONException;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.skyscreamer.jsonassert.JSONAssert;
-import org.skyscreamer.jsonassert.JSONCompareMode;
-import tech.picnic.assignment.api.EventProcessorFactory;
-import tech.picnic.assignment.api.StreamProcessor;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -70,7 +69,7 @@ final class PickingEventProcessorFactoryTest {
                 Arguments.of(
                         100,
                         Duration.ofSeconds(30),
-                        "happy-path-input.json-stream",
+                        "input-pickers-same-name-but-different-Id.json-stream",
                         "output-pickers-same-name-but-different-Id.json"),
 
                 //Check : Result must includes ambient picks
@@ -85,7 +84,7 @@ final class PickingEventProcessorFactoryTest {
                         1,
                         Duration.ofSeconds(10),
                         "input-contains-only-chilled-items.json-stream",
-                        "emptyFile-input.json"));
+                        "output-zero-result.json"));
 
 
     }
@@ -98,7 +97,7 @@ final class PickingEventProcessorFactoryTest {
              ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
             processor.process(source, sink);
             String actualOutput = new String(sink.toByteArray(), StandardCharsets.UTF_8);
-            assertEquals("", actualOutput);
+            assertEquals("[]", actualOutput);
         }
     }
 
@@ -110,7 +109,7 @@ final class PickingEventProcessorFactoryTest {
              ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
             processor.process(source, sink);
             String actualOutput = new String(sink.toByteArray(), StandardCharsets.UTF_8);
-            assertEquals("", actualOutput);
+            assertEquals("[]", actualOutput);
         }
     }
 
@@ -122,7 +121,7 @@ final class PickingEventProcessorFactoryTest {
              ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
             processor.process(source, sink);
             String actualOutput = new String(sink.toByteArray(), StandardCharsets.UTF_8);
-            assertEquals("", actualOutput);
+            assertEquals("[]", actualOutput);
         }
     }
 
