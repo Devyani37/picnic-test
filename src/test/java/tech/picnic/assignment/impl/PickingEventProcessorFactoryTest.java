@@ -58,7 +58,7 @@ final class PickingEventProcessorFactoryTest {
                         "input-same-active-since-for-two-pickers.json-stream",
                         "output-same-active-since-for-two-pickers-sortedBy-pickersId.json"),
 
-                //Check : if maxEvent is one then give only 1 result
+                //Check : if maxEvent is 1 then give only 1 result
                 Arguments.of(
                         1,
                         Duration.ofSeconds(30),
@@ -72,16 +72,16 @@ final class PickingEventProcessorFactoryTest {
                         "input-pickers-same-name-but-different-Id.json-stream",
                         "output-pickers-same-name-but-different-Id.json"),
 
-                //Check : Result must includes ambient picks
+                //Check : Result must only includes ambient picks
                 Arguments.of(
                         100,
                         Duration.ofSeconds(30),
-                        "input-only-includes-ambient-picks.json-stream",
+                        "input-both-ambient-chilled-picks.json-stream",
                         "happy-path-output.json"),
 
-                // Check : If max event is one and pick items are only chilled then return empty list
+                // Check : If pick items are only chilled then return empty list
                 Arguments.of(
-                        1,
+                        100,
                         Duration.ofSeconds(10),
                         "input-contains-only-chilled-items.json-stream",
                         "output-zero-result.json"));
@@ -105,6 +105,18 @@ final class PickingEventProcessorFactoryTest {
     void maxRuntimeZeroShouldReturnEmptyString() throws IOException {
         try (EventProcessorFactory factory = new PickingEventProcessorFactory();
              StreamProcessor processor = factory.createProcessor(100, Duration.ofMillis(0));
+             InputStream source = getClass().getResourceAsStream("happy-path-input.json-stream");
+             ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
+            processor.process(source, sink);
+            String actualOutput = new String(sink.toByteArray(), StandardCharsets.UTF_8);
+            assertEquals("[]", actualOutput);
+        }
+    }
+
+    @Test
+    void maxRuntimeAndMaxEventZeroShouldReturnEmptyString() throws IOException {
+        try (EventProcessorFactory factory = new PickingEventProcessorFactory();
+             StreamProcessor processor = factory.createProcessor(0, Duration.ofMillis(0));
              InputStream source = getClass().getResourceAsStream("happy-path-input.json-stream");
              ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
             processor.process(source, sink);
@@ -144,14 +156,5 @@ final class PickingEventProcessorFactoryTest {
         factories.next();
         assertFalse(factories.hasNext(), "More than one EventProcessorFactory is service-loaded");
     }
-
-
-    /**
-     * Use Test Cases :
-     * If max event is one and pick item is chilled then return empty list
-     * If max item and max time both is 0
-     * If we get another temp-zone apart from Ambient and chilled
-     *
-     */
 
 }

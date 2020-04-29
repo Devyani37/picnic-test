@@ -22,8 +22,12 @@ public final class JsonUtils {
         objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
 
+    private JsonUtils() {
+    }
+
     /**
      * Utility method to Serialize an Object to Json String.
+     *
      * @throws JsonProcessingException
      */
     public static String serialize(Object object) throws JsonProcessingException {
@@ -32,6 +36,7 @@ public final class JsonUtils {
 
     /**
      * Utility Method to deserialize JSON content from given JSON content String.
+     *
      * @throws IOException
      */
     public static <T> T deserialize(String json, Class<T> clazz) throws IOException {
