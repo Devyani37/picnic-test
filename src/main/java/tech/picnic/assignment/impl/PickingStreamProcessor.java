@@ -4,6 +4,7 @@ import tech.picnic.assignment.api.StreamProcessor;
 import tech.picnic.assignment.dtos.Picker;
 import tech.picnic.assignment.models.Event;
 import tech.picnic.assignment.models.TemperatureZone;
+import tech.picnic.assignment.utils.AppConfigUtils;
 import tech.picnic.assignment.utils.JsonUtils;
 
 import java.io.*;
@@ -43,8 +44,11 @@ public class PickingStreamProcessor implements StreamProcessor {
 
     @Override
     public void process(InputStream source, OutputStream sink) throws IOException {
+        if (Objects.isNull(source) || Objects.isNull(sink)) {
+            throw new IllegalArgumentException("I/O streams should not be null.");
+        }
         List<String> jsonEventList = doProcess(source);
-        List<Event> filteredEvents = convertToEventAndFilter(jsonEventList);
+        List<Event> filteredEvents = convertToEventAndFilter(jsonEventList,AppConfigUtils.getExcludedTemperatureZoneConfig());
         List<Picker> pickersGroupedById = toPickers(filteredEvents);
         List<Picker> sortedEvents = sortPickerAndPicks(pickersGroupedById);
 
@@ -105,13 +109,13 @@ public class PickingStreamProcessor implements StreamProcessor {
      * @return List<Event> - List of Filterd Events.
      * @throws IOException
      */
-    private List<Event> convertToEventAndFilter(List<String> jsonEventList) throws IOException {
+    private List<Event> convertToEventAndFilter(List<String> jsonEventList,Set<TemperatureZone> excludedTemperatureZones) throws IOException {
         List<Event> eventList = new ArrayList<>();
-        //object with filter
+
         for (String json : jsonEventList) {
             Event event = JsonUtils.deserialize(json, Event.class);
 
-            if (event.getArticle().getTemperatureZone() != TemperatureZone.CHILLED) {
+            if (!excludedTemperatureZones.contains(event.getArticle().getTemperatureZone())) {
                 eventList.add(event);
             }
         }
@@ -127,7 +131,7 @@ public class PickingStreamProcessor implements StreamProcessor {
 
     private List<Picker> toPickers(List<Event> eventList) {
 
-        Map<String, Picker> groupedPickermap = new HashMap<>();
+        Map<String, Picker> groupedByPickerId = new HashMap<>();
 
         for (Event event : eventList) {
             Picker picker = new Picker(event.getPicker().getId(), event.getPicker().getName(), event.getPicker().getActiveSince());
@@ -135,15 +139,15 @@ public class PickingStreamProcessor implements StreamProcessor {
             String pickerId = event.getPicker().getId();
             picker.getPickItemList().add(pickItem);
 
-            if (!groupedPickermap.containsKey(pickerId)) {
-                groupedPickermap.put(pickerId, picker);
+            if (!groupedByPickerId.containsKey(pickerId)) {
+                groupedByPickerId.put(pickerId, picker);
             } else {
-                Picker picker1 = groupedPickermap.get(pickerId);
+                Picker picker1 = groupedByPickerId.get(pickerId);
                 picker1.getPickItemList().add(pickItem);
             }
         }
 
-        return new ArrayList<>(groupedPickermap.values());
+        return new ArrayList<>(groupedByPickerId.values());
     }
 
     /**
