@@ -36,7 +36,7 @@ public final class Picker {
     }
 
     @JsonProperty("active_since")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'") //Formatting the date and time
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     public Date getActiveSince() {
         return activeSince;
     }

@@ -48,12 +48,12 @@ public class PickingStreamProcessor implements StreamProcessor {
             throw new IllegalArgumentException("I/O streams should not be null.");
         }
         List<String> jsonEventList = doProcess(source);
-        List<Event> filteredEvents = convertToEventAndFilter(jsonEventList,AppConfigUtils.getExcludedTemperatureZoneConfig());
-        List<Picker> pickersGroupedById = toPickers(filteredEvents);
-        List<Picker> sortedEvents = sortPickerAndPicks(pickersGroupedById);
+        List<Event> filteredEvents = convertToEventAndFilter(jsonEventList);
+        List<Picker> pickers = toPickers(filteredEvents);
+        List<Picker> sortedPickers = sortPickerAndPicks(pickers);
 
-        //Serialization of the Result and writing to output stream
-        String output = JsonUtils.serialize(sortedEvents);
+        //Serialization of Result and writing to output stream
+        String output = JsonUtils.serialize(sortedPickers);
         writeToOutputStream(output, sink);
     }
 
@@ -66,7 +66,7 @@ public class PickingStreamProcessor implements StreamProcessor {
      * @return List<String>
      * @throws IOException
      */
-    private List<String> doProcess(InputStream source) throws IOException {
+    private List<String> doProcess(final InputStream source) throws IOException {
         List<String> eventList = new ArrayList<>();
 
         try {
@@ -74,13 +74,13 @@ public class PickingStreamProcessor implements StreamProcessor {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(source, StandardCharsets.UTF_8))) {
                     String line;
                     long endTime = System.currentTimeMillis() + maxTime.toMillis();
-
                     // Here extra check for maxTime to avoid edge case e.g. maxTime = 0 millis
-
                     while (System.currentTimeMillis() < endTime
                             && eventList.size() < maxEvents
                             && (line = reader.readLine()) != null) {
+
                         line = line.trim();
+
                         if (!line.isEmpty()) {
                             eventList.add(line);
                         }
@@ -93,7 +93,7 @@ public class PickingStreamProcessor implements StreamProcessor {
             if (!(e.getCause() instanceof TimeoutException)) {
                 throw new IOException("Exception Occurred during async stream processing ", e);
             }
-            //Silently swallow the TimeoutException in this case because we have reached the time limit.
+            //Adding log as reached the time limit.
             LOGGER.log(Level.FINE, "Maximum Time limit reached");
         }
 
@@ -102,15 +102,16 @@ public class PickingStreamProcessor implements StreamProcessor {
 
 
     /**
-     * This function takes the raw event Lists and filterd it according to Temperature zone (excluding chilled articles).
+     * This function takes the raw event Lists and filter it according to Temperature zone (excluding chilled articles).
      * And return list of events into deserialized form (Event model).
      *
      * @param jsonEventList - List of Events in JSON.
      * @return List<Event> - List of Filterd Events.
      * @throws IOException
      */
-    private List<Event> convertToEventAndFilter(List<String> jsonEventList,Set<TemperatureZone> excludedTemperatureZones) throws IOException {
+    private List<Event> convertToEventAndFilter(final List<String> jsonEventList) throws IOException {
         List<Event> eventList = new ArrayList<>();
+        Set<TemperatureZone> excludedTemperatureZones = AppConfigUtils.getExcludedTemperatureZoneConfig();
 
         for (String json : jsonEventList) {
             Event event = JsonUtils.deserialize(json, Event.class);
@@ -129,21 +130,21 @@ public class PickingStreamProcessor implements StreamProcessor {
      * @return List<Picker> - List of Picker (dto)
      */
 
-    private List<Picker> toPickers(List<Event> eventList) {
+    private List<Picker> toPickers(final List<Event> eventList) {
 
         Map<String, Picker> groupedByPickerId = new HashMap<>();
 
         for (Event event : eventList) {
-            Picker picker = new Picker(event.getPicker().getId(), event.getPicker().getName(), event.getPicker().getActiveSince());
-            Picker.PickItem pickItem = new Picker.PickItem(event.getArticle().getName().toUpperCase(), event.getTimestamp());
             String pickerId = event.getPicker().getId();
-            picker.getPickItemList().add(pickItem);
+            //Here taking care of upperCasing of articles.
+            Picker.PickItem pickItem = new Picker.PickItem(event.getArticle().getName().toUpperCase(), event.getTimestamp());
 
-            if (!groupedByPickerId.containsKey(pickerId)) {
-                groupedByPickerId.put(pickerId, picker);
+            if (groupedByPickerId.containsKey(pickerId)) {
+                groupedByPickerId.get(pickerId).getPickItemList().add(pickItem);
             } else {
-                Picker picker1 = groupedByPickerId.get(pickerId);
-                picker1.getPickItemList().add(pickItem);
+                Picker picker = new Picker(pickerId, event.getPicker().getName(), event.getPicker().getActiveSince());
+                picker.getPickItemList().add(pickItem);
+                groupedByPickerId.put(pickerId, picker);
             }
         }
 
@@ -155,29 +156,18 @@ public class PickingStreamProcessor implements StreamProcessor {
      * breaking ties by ID. It also sorts items picked by pickers chronologically(ascending) based on timestamp.
      * Then returns the serialized value of the sorted collection.
      *
-     * @param pickersGroupedById List of Picker(Dto)
-     * @return Serialized data
+     * @param pickers List of Picker(Dto)
+     * @return List<Picker> - List of Sorted Picker (dto)
      */
-    private List<Picker> sortPickerAndPicks(List<Picker> pickersGroupedById) {
+    private List<Picker> sortPickerAndPicks(final List<Picker> pickers) {
         //Sorting of Picker object firstly by active since and secondly by picker id
-        pickersGroupedById.sort((o1, o2) -> {
-            int comparison = 0;
-            comparison = o1.getActiveSince().compareTo(o2.getActiveSince());
-            if (comparison == 0) {
-                comparison = o1.getId().compareTo(o2.getId());
-            }
-            return comparison;
-        });
+        pickers.sort(Comparator.comparing(Picker::getActiveSince).thenComparing(Picker::getId));
 
         //Sorting Picker's pick as per the timestamp
-        for (Picker picker : pickersGroupedById) {
-            picker.getPickItemList().sort((o1, o2) -> {
-                int val = 0;
-                val = o1.getTimestamp().compareTo(o2.getTimestamp());
-                return val;
-            });
+        for (Picker picker : pickers) {
+            picker.getPickItemList().sort(Comparator.comparing(Picker.PickItem::getTimestamp));
         }
-        return pickersGroupedById;
+        return pickers;
     }
 
     /**
@@ -188,9 +178,9 @@ public class PickingStreamProcessor implements StreamProcessor {
      * @throws IOException
      */
 
-    private void writeToOutputStream(String data, OutputStream sink) throws IOException {
+    private void writeToOutputStream(final String data, final OutputStream sink) throws IOException {
         if (Objects.isNull(data) || data.isEmpty()) {
-            sink.write(new byte[0]);
+            sink.write(new byte[0]); // To keep output json consistent in case of no result.
         } else {
             sink.write(data.getBytes(StandardCharsets.UTF_8));
         }
